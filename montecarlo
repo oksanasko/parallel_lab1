@@ -1,69 +1,60 @@
-import random 
+import multiprocessing
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.patches import Circle
-
-import time, math
-from threading import Thread
-import os
-
+import time
+import math
 from numba import jit
 
-# fig, ax = plt.subplots()
-# ax.add_patch(Circle((0,0), 1, alpha=0.1, color="green"))
-# plt.scatter(x,y, s=1)
-# plt.axhline(0, color="red")
-# plt.axvline(0, color="red")
-# ax.set_aspect("equal")
-# plt.show()
-    
+
 class FindPi:
-    def __init__(self):
-        self.n = 0
-        self.i = 0
-
-    def throw_point(self, nn):
-        (self.i, self.n) = self.throw_point_static(nn)
-
     @staticmethod
-    @jit(nopython=True, nogil=True)
-    def throw_point_static(nn):
-        i = 0
-        n = 0
+    def throw_points(nn):
+        inside = 0
         for _ in range(nn):
             x = np.random.uniform(-1,1)
             y = np.random.uniform(-1,1)
-            r = x**2 + y**2
-            n +=1
-            if r <=1:
-                i +=1
-        return i, n
-    
-    def value_of_pi(self):
-        return 4*self.i/self.n
-    
+            if x**2 + y**2 <= 1:
+                inside += 1
+        return inside, nn
+
+# Worker function for multiprocessing
+def worker(nn):
+    return FindPi.throw_points(nn)
+
+
+def run_experiments(total_points_list, process_counts):
+    results = []
+
+    for N in total_points_list:
+        print(f"\n--- Total points = {N} ---")
+        for num_proc in process_counts:
+            points_per_proc = N // num_proc
+
+            start_time = time.time()
+
+            pool = multiprocessing.Pool(processes=num_proc)
+            async_results = [pool.apply_async(worker, args=(points_per_proc,)) for _ in range(num_proc)]
+            pool.close()
+            pool.join()
+
+            inside_total = 0
+            total_points_actual = 0
+            for r in async_results:
+                i, n = r.get()
+                inside_total += i
+                total_points_actual += n
+
+            pi_estimate = 4 * inside_total / total_points_actual
+            elapsed = time.time() - start_time
+
+            print(f"Processes = {num_proc:2d} | pi ≈ {pi_estimate:.6f} | time = {elapsed:.4f}s")
+            results.append((N, num_proc, pi_estimate, elapsed))
+    return results
 
 if __name__ == "__main__":
-    start = time.time()
-    n = 10000000
-    find_pi_s =[]
-    threads = []
-    for i in range(os.cpu_count()): #
-        find_pi_s.append(FindPi())
-        threads.append(Thread(target=find_pi_s[i].throw_point, args=(n,)))
-        print("Started thread number %d" % i)
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-    inner = 0
-    total = 0
-    for find_pi in find_pi_s:
-        inner += find_pi.i
-        total += find_pi.n
-    pi = 4*inner/total
-    end = time.time()
-    print("pi(const) = %.10f \npi(found) = %.10f | N = %d / %d | time = %.8f" % (math.pi, pi, inner, total, end - start))
-  
+    # different total numbers of points
+    total_points_list = [50_000, 500_000, 2_000_000]  
 
-    
+    # Try different numbers of processes
+    process_counts = [1, 2, 4, 8, 16]  # 
+
+    results = run_experiments(total_points_list, process_counts)
