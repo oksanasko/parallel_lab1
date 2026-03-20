@@ -32,7 +32,6 @@ class MatrixTranspose:
     @jit(nopython=True, nogil=True)
     def transpose_part(mat, result, start_row, end_row):
         n = mat.shape[0]
-
         for i in range(start_row, end_row):
             for j in range(n):
                 result[j, i] = mat[i, j]
@@ -51,7 +50,7 @@ class MatrixTranspose:
                 args=(mat, self.result, start_row, end_row)
             )
             threads.append(thread)
-            print(f"Started thread {idx}: rows {start_row} → {end_row}")
+            #print(f"Started thread {idx}: rows {start_row} → {end_row}")
 
         for thread in threads:
             thread.start()
@@ -62,15 +61,29 @@ class MatrixTranspose:
         return self.result
 
 
+def run_transpose_experiments(matrix_sizes, thread_counts):
+    results = []
+
+    for size in matrix_sizes:
+        print(f"\n--- Matrix size = {size} x {size} ---")
+        mat = MatrixTranspose.generate_matrix(size)
+
+        for num_threads in thread_counts:
+            mt = MatrixTranspose()
+            start_time = time.time()
+            result = mt.transpose_in_threads(mat, num_threads=num_threads)
+            elapsed = time.time() - start_time
+
+            correct = np.allclose(result, mat.T)
+            print(f"Threads = {num_threads:2d} | Time = {elapsed:.4f}s | Correct = {correct}")
+
+            results.append((size, num_threads, elapsed, correct))
+
+    return results
+
+
 if __name__ == "__main__":
-    mt = MatrixTranspose()
+    matrix_sizes = [10_000, 15_000, 20_000]  # smaller sizes for quick testing
+    thread_counts = [1, 2, 4, 8, 16]         # number of threads
 
-    mat = mt.generate_matrix(10_000) 
-
-    start = time.time()
-    result = mt.transpose_in_threads(mat, num_threads=4)
-    end = time.time()
-
-    print(f"Time: {end - start:.4f} sec")
-    print("Shape:", result.shape)
-    print(f"correctly transposed {np.allclose(result, mat.T)} ") 
+    results = run_transpose_experiments(matrix_sizes, thread_counts)
