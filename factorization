@@ -1,0 +1,56 @@
+
+import multiprocessing
+import time
+
+def factor_range(n, start, end):
+    factors = []
+    for i in range(start, end):
+        if n % i == 0:
+            factors.append(i)
+    return factors
+
+def split_ranges(n, num_processes):
+    ranges = []
+
+    chunk_size = n // num_processes
+    start = 1
+
+    for i in range(num_processes):
+        end = start + chunk_size
+        if end > n:
+            end = n
+        ranges.append((start, end))
+        start = end
+
+    return ranges
+
+def factorize(n, num_processes=4):
+    ranges = split_ranges(n, num_processes)
+    pool = multiprocessing.Pool(processes=num_processes)
+    results = []
+
+    # each task
+    for r in ranges:
+        start = r[0]
+        end = r[1]
+        results.append(pool.apply_async(factor_range, (n, start, end)))
+
+    pool.close()
+    pool.join()
+
+    # results
+    final_factors = []
+
+    for res in results:
+        partial = res.get()
+        for value in partial:
+            final_factors.append(value)
+
+    return final_factors
+
+if __name__ == "__main__":
+    start_time = time.time()
+    n = 123456789
+    print(f"Factors of {n}:", factorize(n, num_processes=4))
+    end_time = time.time()
+    print(f"Time: {end_time - start_time:.7f}s")
