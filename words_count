@@ -1,0 +1,67 @@
+import os
+import random
+import string
+import time
+from concurrent.futures import ThreadPoolExecutor
+
+
+def generate_random_text(min_words=100, max_words=500):
+    words_count = random.randint(min_words, max_words)
+    words = []
+
+    for _ in range(words_count): #random words
+        word_len = random.randint(3, 10)
+        word = ''.join(random.choices(string.ascii_lowercase, k=word_len))
+        words.append(word)
+
+    return " ".join(words)
+
+
+def generate_test_data(base_path, num_files=500):
+    os.makedirs(base_path, exist_ok=True)
+
+    for i in range(num_files):
+        current_path = base_path
+
+        file_path = os.path.join(current_path, f"file_{i}.txt") #create file 
+
+        with open(file_path, "w", encoding="utf-8") as f: #write in file
+            f.write(generate_random_text())
+
+
+def count_words_in_file(file_path):
+    with open(file_path, "r", encoding="utf-8") as f:
+        return len(f.read().split())
+
+
+def count_words_parallel(base_path, num_threads=4):
+    file_paths = []
+
+    # collect all file paths first
+    for root, dirs, files in os.walk(base_path):
+        for file in files:
+            if file.endswith(".txt"):
+                file_paths.append(os.path.join(root, file))
+
+    # process files in parallel
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        results = executor.map(count_words_in_file, file_paths)
+
+    return sum(results)
+
+def benchmark(base_path):
+
+    for threads in [16]: #only one at the time
+        start = time.time()
+        total = count_words_parallel(base_path, threads)
+        end = time.time()
+        print(f"Threads: {threads}, Time: {end - start:.4f} sec, Words: {total}")
+
+if __name__ == "__main__":
+    base_dir = r"C:\Users\user\Desktop\унік\2сем\parall\data"
+
+    print("Generating test data...")
+    generate_test_data(base_dir, num_files=500)
+
+    print("Running benchmark...")
+    benchmark(base_dir)
