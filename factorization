@@ -1,4 +1,3 @@
-
 import multiprocessing
 import time
 
@@ -11,46 +10,46 @@ def factor_range(n, start, end):
 
 def split_ranges(n, num_processes):
     ranges = []
-
     chunk_size = n // num_processes
     start = 1
-
     for i in range(num_processes):
         end = start + chunk_size
-        if end > n:
-            end = n
+        if i == num_processes - 1:
+            end = n + 1  # last process goes up to n inclusive
         ranges.append((start, end))
         start = end
-
     return ranges
 
 def factorize(n, num_processes=4):
     ranges = split_ranges(n, num_processes)
     pool = multiprocessing.Pool(processes=num_processes)
-    results = []
-
-    # each task
-    for r in ranges:
-        start = r[0]
-        end = r[1]
-        results.append(pool.apply_async(factor_range, (n, start, end)))
-
+    results = [pool.apply_async(factor_range, (n, start, end)) for start, end in ranges]
     pool.close()
     pool.join()
 
-    # results
     final_factors = []
-
     for res in results:
-        partial = res.get()
-        for value in partial:
-            final_factors.append(value)
+        final_factors.extend(res.get())
 
     return final_factors
 
+def run_factor_experiments(numbers, process_counts):
+    results = []
+
+    for n in numbers:
+        print(f"\n--- Factorizing {n} ---")
+        for num_proc in process_counts:
+            start_time = time.time()
+            factors = factorize(n, num_proc)
+            elapsed = time.time() - start_time
+
+            print(f"Processes = {num_proc:2d} | Factors found = {len(factors)} | time = {elapsed:.5f}s")
+            results.append((n, num_proc, len(factors), elapsed))
+
+    return results
+
 if __name__ == "__main__":
-    start_time = time.time()
-    n = 123456789
-    print(f"Factors of {n}:", factorize(n, num_processes=4))
-    end_time = time.time()
-    print(f"Time: {end_time - start_time:.7f}s")
+    numbers = [12345678, 123456789, 1234567891]  # numbers to factorize
+    process_counts = [1, 2, 4, 8, 16]          # adjust to CPU cores
+
+    results = run_factor_experiments(numbers, process_counts)
