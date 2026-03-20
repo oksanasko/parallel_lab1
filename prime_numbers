@@ -1,14 +1,11 @@
+import multiprocessing
+import time
 from numba import jit
-import time, os
-from threading import Thread
+
 
 class FindPrime:
-
-    def __init__(self):
-        self.result = []  # store primes
-
     @staticmethod
-    @jit(nopython=True, nogil=True)
+
     def is_prime(n):
         if n <= 1:
             return False
@@ -23,53 +20,60 @@ class FindPrime:
             i += 6
         return True
 
-    def primes_in_range(self, start, end):
-        local_primes = []
+    @staticmethod
+    def primes_in_range(start, end):
+        primes = []
         for n in range(start, end):
-            if self.is_prime(n):
-                local_primes.append(n)
-        self.result = local_primes  # store result
+            if FindPrime.is_prime(n):
+                primes.append(n)
+        return primes
+
+
+# worker for multiprocessing
+def worker(start, end):
+    return FindPrime.primes_in_range(start, end)
+
+def run_prime_experiments(num_start, num_finish, process_counts):
+    results = []
+
+    total_numbers = num_finish - num_start
+
+    for num_proc in process_counts:
+        # Split work evenly
+        chunk_size = total_numbers // num_proc
+        ranges = []
+        start = num_start
+        for i in range(num_proc):
+            end = start + chunk_size
+            if i == num_proc - 1:
+                end = num_finish  # last process takes remainder
+            ranges.append((start, end))
+            start = end
+
+        print(f"\nRunning with {num_proc} processes...")
+        start_time = time.time()
+
+        pool = multiprocessing.Pool(processes=num_proc)
+        async_results = [pool.apply_async(worker, args=r) for r in ranges]
+        pool.close()
+        pool.join()
+
+        # Collect all primes
+        all_primes = []
+        for r in async_results:
+            all_primes.extend(r.get())
+
+        elapsed = time.time() - start_time
+        print(f"Processes = {num_proc:2d} | Primes found = {len(all_primes)} | time = {elapsed:.5f}s")
+        results.append((num_finish - num_start, num_proc, len(all_primes), elapsed))
+
+    return results
 
 
 if __name__ == "__main__":
-    start_time = time.time()
-
     num_start = 1
-    num_finish = 10000
-    num_threads = os.cpu_count()
+    num_finish = 3_000_000  # 
+    print(f" for {num_finish}")
+    process_counts = [1, 2, 4, 8, 16]  # 
 
-    part_size = (num_finish - num_start) // num_threads
-
-    find_primes = []
-    threads = []
-
-    for i in range(num_threads):
-        fp = FindPrime()
-        find_primes.append(fp)
-
-        start_range = num_start + i * part_size
-        end_range = num_start + (i + 1) * part_size
-
-        if i == num_threads - 1:
-            end_range = num_finish  # last thread takes remainder
-
-        thread = Thread(target=fp.primes_in_range, args=(start_range, end_range))
-        threads.append(thread)
-
-        print(f"Started thread {i}: {start_range} → {end_range}")
-
-    for thread in threads:
-        thread.start()
-
-    for thread in threads:
-        thread.join()
-
-    #  results
-    all_primes = []
-    for fp in find_primes:
-        all_primes.extend(fp.result)
-
-    end_time = time.time()
-
-    print(f"Found {len(all_primes)} primes")
-    print(f"Time: {end_time - start_time:.7f}s")
+    results = run_prime_experiments(num_start, num_finish, process_counts)
