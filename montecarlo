@@ -1,0 +1,69 @@
+import random 
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
+
+import time, math
+from threading import Thread
+import os
+
+from numba import jit
+
+# fig, ax = plt.subplots()
+# ax.add_patch(Circle((0,0), 1, alpha=0.1, color="green"))
+# plt.scatter(x,y, s=1)
+# plt.axhline(0, color="red")
+# plt.axvline(0, color="red")
+# ax.set_aspect("equal")
+# plt.show()
+    
+class FindPi:
+    def __init__(self):
+        self.n = 0
+        self.i = 0
+
+    def throw_point(self, nn):
+        (self.i, self.n) = self.throw_point_static(nn)
+
+    @staticmethod
+    @jit(nopython=True, nogil=True)
+    def throw_point_static(nn):
+        i = 0
+        n = 0
+        for _ in range(nn):
+            x = np.random.uniform(-1,1)
+            y = np.random.uniform(-1,1)
+            r = x**2 + y**2
+            n +=1
+            if r <=1:
+                i +=1
+        return i, n
+    
+    def value_of_pi(self):
+        return 4*self.i/self.n
+    
+
+if __name__ == "__main__":
+    start = time.time()
+    n = 10000000
+    find_pi_s =[]
+    threads = []
+    for i in range(os.cpu_count()): #
+        find_pi_s.append(FindPi())
+        threads.append(Thread(target=find_pi_s[i].throw_point, args=(n,)))
+        print("Started thread number %d" % i)
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    inner = 0
+    total = 0
+    for find_pi in find_pi_s:
+        inner += find_pi.i
+        total += find_pi.n
+    pi = 4*inner/total
+    end = time.time()
+    print("pi(const) = %.10f \npi(found) = %.10f | N = %d / %d | time = %.8f" % (math.pi, pi, inner, total, end - start))
+  
+
+    
