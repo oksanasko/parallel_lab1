@@ -1,0 +1,76 @@
+import numpy as np
+import time
+from threading import Thread
+from numba import jit
+
+
+class MatrixTranspose:
+    def __init__(self):
+        self.result = None
+
+    @staticmethod
+    def generate_matrix(size=10_000):
+        return np.random.randint(0, 100, size=(size, size), dtype=np.int8)
+
+    @staticmethod
+    def split_parts(n, num_threads):
+        part_size = n // num_threads
+        parts = []
+
+        for i in range(num_threads):
+            start = i * part_size
+            end = (i + 1) * part_size
+
+            if i == num_threads - 1:
+                end = n  # last part takes the remainder
+
+            parts.append((start, end))
+
+        return parts
+
+    @staticmethod
+    @jit(nopython=True, nogil=True)
+    def transpose_part(mat, result, start_row, end_row):
+        n = mat.shape[0]
+
+        for i in range(start_row, end_row):
+            for j in range(n):
+                result[j, i] = mat[i, j]
+
+    def transpose_in_threads(self, mat, num_threads=4):
+        n = mat.shape[0]
+        self.result = np.zeros((n, n), dtype=mat.dtype)
+
+        parts = self.split_parts(n, num_threads)
+
+        threads = []
+
+        for idx, (start_row, end_row) in enumerate(parts):
+            thread = Thread(
+                target=MatrixTranspose.transpose_part,
+                args=(mat, self.result, start_row, end_row)
+            )
+            threads.append(thread)
+            print(f"Started thread {idx}: rows {start_row} → {end_row}")
+
+        for thread in threads:
+            thread.start()
+
+        for thread in threads:
+            thread.join()
+
+        return self.result
+
+
+if __name__ == "__main__":
+    mt = MatrixTranspose()
+
+    mat = mt.generate_matrix(10_000) 
+
+    start = time.time()
+    result = mt.transpose_in_threads(mat, num_threads=4)
+    end = time.time()
+
+    print(f"Time: {end - start:.4f} sec")
+    print("Shape:", result.shape)
+    print(f"correctly transposed {np.allclose(result, mat.T)} ") 
